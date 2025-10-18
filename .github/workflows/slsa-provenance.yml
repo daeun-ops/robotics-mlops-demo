@@ -1,0 +1,13 @@
+name: SLSA provenance (attestation)
+on:
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [completed]
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.11.0
+        with:
+          image: ghcr.io/${{ github.repository }}/robotics-model
+          digest: ${{ needs.build.outputs.image_digest || '' }} # 없으면 생략
