@@ -147,3 +147,19 @@ jobs:
           KUBECONFIG: ${{ github.workspace }}/kubeconfig
         run: |
           kubectl -n "${{ env.K8S_NAMESPACE }}" rollout status deploy/${{ env.DEPLOYMENT_NAME }} --timeout=120s
+
+
+      
+      - name: Canary SLO check & rollback
+        run: |
+          PROM=http://?:9090
+          p95=$(curl -s "$PROM/api/v1/query?query=histogram_quantile(0.95,sum(rate(inference_duration_seconds_bucket[5m])) by (le))" | jq -r '.data.result[0].value[1]' || echo 0)
+          err=$(curl -s "$PROM/api/v1/query?query=sum(rate(inference_failure_total[5m]))/sum(rate(inference_requests_total[5m]))" | jq -r '.data.result[0].value[1]' || echo 0)
+          echo "p95=$p95 err=$err"
+          awk -v a="$p95" -v b="$err" 'BEGIN{ exit (a>0.8 || b>0.08) ? 1:0 }'
+          if [ $? -ne 0 ]; then
+          echo "카나리 실패 → 자동 롤백"
+           kubectl -n "${{ env.K8S_NAMESPACE }}" rollout undo rollout/robotics-model || \
+           kubectl -n "${{ env.K8S_NAMESPACE }}" rollout undo deploy/robotics-model
+           exit 1
+          fip
