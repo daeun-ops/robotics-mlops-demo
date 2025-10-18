@@ -1,1 +1,2 @@
-
+apache-airflow-providers-cncf-kubernetes==9.0.0
+apache-airflow-providers-amazon==8.19.0   # (S3/MinIO 훗날 대비)
