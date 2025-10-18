@@ -31,3 +31,5 @@ spec:
     - name: v2
       labels:
         version: v2
+
+  # weight 값을 조정해 트래픽을 점진적으로 전환하거나 롤백가능ㅇ
