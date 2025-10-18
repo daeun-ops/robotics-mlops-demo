@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: robotics-allowlist, namespace: ? }
+spec:
+  podSelector: { matchLabels: { app: robotics-model } }
+  policyTypes: [ Ingress, Egress ]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { istio-injection: enabled } }  # 서비스 메시(mTLS)에서만 접근
+      ports:
+        - { port: 80, protocol: TCP }
+        - { port: 15090, protocol: TCP }  # (옵션) envoy metrics
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { app.kubernetes.io/name: mlflow } }     # MLflow 연결
+        - namespaceSelector: { matchLabels: { app.kubernetes.io/name: minio } }      # MinIO 아티팩트
+        - ipBlock: { cidr: 0.0.0.0/0 }    # 외부 호출 필요 시 특정 CIDR로 좁혀라 (데모라 전체 열어둠)
+      ports:
+        - { port: 5000, protocol: TCP }   # MLflow
+        - { port: 9000, protocol: TCP }   # MinIO
+        - { port: 4318, protocol: TCP }   # OTLP(Tracing)
+        - { port: 443,  protocol: TCP }   # 외부 API
