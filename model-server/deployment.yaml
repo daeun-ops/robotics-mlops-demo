@@ -14,37 +14,27 @@ spec:
       labels:
         app: robotics-model
     spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1            # 한번에 1개 추가 생성
+      maxUnavailable: 0      # 가용성 100% 유지
+  template:
+    spec:
+      terminationGracePeriodSeconds: 20   # 프록시 연결 종료 대기
       containers:
         - name: robotics-model
-          image: ghcr.io/daeunkim-dev/robotics-model:latest  # 실제 빌드 시 교체
-          ports:
-            - containerPort: 8000
-          env:
-            - name: MODEL_VERSION   # ← /info 에 노출
-              value: "v1"
-            - name: GIT_COMMIT      # ← CI에서 주입(없으면 '?')
-              value: "?"
-            - name: ENV             # ← 배포 환경(dev/stage/prod)
-              value: "dev"
-          securityContext:          # ← 루트 금지/권한 상승 금지
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          resources:                # ← HPA 안정을 위한 리소스 보장/제한
-            requests:
-              cpu: "200m"
-              memory: "256Mi"
-            limits:
-              cpu: "1"
-              memory: "10Gi"
+          ...
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh","-c","sleep 5"]  # 커넥션 드레인용 완충
           readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 5
+            httpGet: { path: /health, port: 8000 }
             periodSeconds: 5
+            failureThreshold: 2
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 10
+            httpGet: { path: /health, port: 8000 }
             periodSeconds: 10
+            failureThreshold: 3
