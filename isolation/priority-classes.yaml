@@ -1,0 +1,15 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: safety-high }
+value: 100000
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: "안전/제어 관련 워크로드 우선"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: robotics-model, namespace: robotics-platform }
+spec:
+  template:
+    spec:
+      priorityClassName: safety-high
