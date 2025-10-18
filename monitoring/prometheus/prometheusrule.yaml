@@ -108,7 +108,6 @@ spec:
     summary: "의존 서비스 다운"
     description: "MLflow/MinIO/OTLP/Prom 중 장애"
 
-
 - alert: Envoy5xxSpike
   expr: sum(rate(istio_requests_total{response_code=~"5..", reporter="destination", destination_workload="robotics-model"}[5m])) > 1
   for: 5m
@@ -117,4 +116,44 @@ spec:
     summary: "메시 5xx 급증"
     description: "mTLS/라웃팅/백엔드 점검"
 
-        
+- alert: CrashLoopBackOff
+  expr: sum(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff",namespace="?"}) > 0
+  for: 5m
+  labels: { severity: critical }
+  annotations: { summary: "CrashLoopBackOff", description: "컨테이너 반복 충돌" }
+
+- alert: HighRestarts
+  expr: sum(increase(kube_pod_container_status_restarts_total{namespace="?"}[10m])) by (pod) > 3
+  for: 10m
+  labels: { severity: warning }
+  annotations: { summary: "파드 재시작 과다", description: "10분 내 3회 이상" }
+
+
+- alert: HPAAtMax
+  expr: kube_horizontalpodautoscaler_status_current_replicas{horizontalpodautoscaler="robotics-model-hpa",namespace="?"}
+        >= kube_horizontalpodautoscaler_spec_max_replicas{horizontalpodautoscaler="robotics-model-hpa",namespace="?"}
+  for: 10m
+  labels: { severity: warning }
+  annotations: { summary: "HPA 최대치", description: "리소스 한계" }
+
+- alert: CPUThrottlingHigh
+  expr: rate(container_cpu_cfs_throttled_seconds_total{pod=~"robotics-model-.*"}[5m]) /
+        rate(container_cpu_cfs_periods_total{pod=~"robotics-model-.*"}[5m]) > 0.2
+  for: 10m
+  labels: { severity: warning }
+  annotations: { summary: "CPU 스로틀링 20%+", description: "리미트/튜닝 필요" }
+
+
+
+- alert: DependencyDown
+  expr: up{job=~"mlflow|minio|otel|prometheus"} == 0
+  for: 2m
+  labels: { severity: critical }
+  annotations: { summary: "의존 서비스 다운", description: "엔드포인트 확인" }
+
+
+- alert: Envoy5xxSpike
+  expr: sum(rate(istio_requests_total{response_code=~"5..", destination_workload="robotics-model"}[5m])) > 1
+  for: 5m
+  labels: { severity: warning }
+  annotations: { summary: "Istio 5xx 스파이크", description: "라우팅/mTLS/백엔드 점검" }
