@@ -25,7 +25,7 @@ def main(run_name: str):
     #  MLflow Run name/tag ci에 주입 가능한 값으로 통일흘라고
     run_name = os.environ.get("RUN_NAME", run_name)
     mlflow.set_tag("git_commit", os.environ.get("GIT_COMMIT", "unknown"))  # ← 커밋 추적
-    with mlflow.start_run(run_name=run_name)
+    with mlflow.start_run(run_name=run_name) :
 
         clf = LogisticRegression(max_iter=1000)
         clf.fit(Xtr, ytr)
