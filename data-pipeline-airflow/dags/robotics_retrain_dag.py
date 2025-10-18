@@ -136,4 +136,4 @@ with DAG(
         op_kwargs={"run_name":"robotics_demo","input_path":"/opt/airflow/shared/features.json"},
      )
 
-+    ingest >> preprocess >> validate >> train
+    ingest >> preprocess >> validate >> train
