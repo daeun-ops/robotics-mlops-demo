@@ -1,0 +1,65 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: robotics-model-alerts
+  namespace: ?
+  labels: { release: prometheus }
+spec:
+  groups:
+    - name: api-slo
+      rules:
+        - alert: HighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le)) > 0.5
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "p95 지연 상승"
+            description: "지난 10분 p95 > 0.5s (튜닝: 서비스 SLO에 맞추어 조정)"
+        - alert: HighErrorRate
+          expr: sum(rate(inference_failure_total[5m])) / sum(rate(inference_requests_total[5m])) > 0.05
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "5xx/실패 비율 5% 초과"
+            description: "지난 5분 실패율 > 5%"
+
+    - name: model-quality
+      rules:
+        - alert: LowConfidenceSpike
+          expr: (rate(inference_low_confidence_total[5m]) / rate(inference_requests_total[5m])) > 0.20
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "낮은 확신 비율 급증"
+            description: "최근 10분간 low confidence > 20% (모델/데이터 이상 가능)"
+        - alert: InputDriftDetected
+          expr: avg_over_time(input_kl_divergence[15m]) > 0.1
+          for: 15m
+          labels: { severity: warning }
+          annotations:
+            summary: "입력 분포 드리프트 감지"
+            description: "KL Divergence > 0.1 (베이스라인 대비 입력 분포 변형)"
+
+    - name: robotics-domain
+      rules:
+        - alert: ControlLoopJitterHigh
+          expr: histogram_quantile(0.95, sum(rate(control_loop_jitter_seconds_bucket[5m])) by (le)) > 0.02
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "제어 루프 지터 과다"
+            description: "p95 제어 지터 > 20ms (제어 안정성 저하)"
+        - alert: SafetyStopSpike
+          expr: sum(rate(safety_stop_total[5m])) > 3
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: "안전정지 이벤트 급증"
+            description: "5분간 safety_stop_total > 3 (원인 확인 필요)"
+        - alert: LocalizationLostHigh
+          expr: avg_over_time(localization_lost_ratio[10m]) > 0.2
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "Localization Lost 비율 높음"
+            description: "최근 10분 Lost > 20% (맵/조명/센서 이상 가능)"
