@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  name: robotics-ci-run
+  namespace: "?" # 이름은 리더님 지어줘
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: robotics-ci
+  params:
+    - name: IMAGE
+      value: ghcr.io/?/?/robotics-model:?
+    - name: K8S_NAMESPACE
+      value: "?"
