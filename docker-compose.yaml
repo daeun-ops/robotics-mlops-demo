@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      - _PIP_ADDITIONAL_REQUIREMENTS=-r /opt/airflow/requirements.txt
       - _PIP_ADDITIONAL_REQUIREMENTS=
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=False
@@ -21,6 +22,9 @@ services:
     volumes:
       - ./data-pipeline-airflow/dags:/opt/airflow/dags
       - airflow_shared:/opt/airflow/shared           # ← DAG 간 공유 아티팩트 저장소
+      - ./data-pipeline-airflow/dags:/opt/airflow/ 
+      - ./data-pipeline-airflow/requirements.txt:/opt/airflow/requirements.txt
+      - airflow_shared:/opt/airflow/shared    
     healthcheck:                                     # ← 웹서버 헬스체크(운영 감성)
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
