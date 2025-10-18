@@ -83,6 +83,8 @@ jobs:
           context: ./model-server
           file: ./model-server/Dockerfile
           push: true
+          build-args: |
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
           tags: |
             ${{ steps.vars.outputs.img }}
             ${{ steps.vars.outputs.img_latest }}
