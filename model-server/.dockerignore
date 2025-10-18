@@ -1,3 +1,5 @@
+model-server/.dockerignore
+──────────────────────────
 __pycache__/
 *.pyc
 *.pyo
