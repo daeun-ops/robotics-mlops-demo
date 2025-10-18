@@ -1,0 +1,7 @@
+{
+  "index_patterns": ["robotics-logs-*"],
+  "settings": {
+    "index.lifecycle.name": "robotics-logs-ilm",
+    "index.lifecycle.rollover_alias": "robotics-logs"
+  }
+}
