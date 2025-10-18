@@ -20,8 +20,22 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: MODEL_VERSION
+            - name: MODEL_VERSION   # ← /info 에 노출
               value: "v1"
+            - name: GIT_COMMIT      # ← CI에서 주입(없으면 '?')
+              value: "?"
+            - name: ENV             # ← 배포 환경(dev/stage/prod)
+              value: "dev"
+          securityContext:          # ← 루트 금지/권한 상승 금지
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          resources:                # ← HPA 안정을 위한 리소스 보장/제한
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "10Gi"
           readinessProbe:
             httpGet:
               path: /health
