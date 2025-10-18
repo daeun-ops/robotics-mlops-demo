@@ -1,0 +1,17 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata: { name: readonly-dropcaps }
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: enforce-readonly
+      match: { resources: { kinds: [ "Pod" ] } }
+      validate:
+        message: "루트FS는 읽기전용이어야 함"
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+                  allowPrivilegeEscalation: false
+                  capabilities: { drop: ["ALL"] }
