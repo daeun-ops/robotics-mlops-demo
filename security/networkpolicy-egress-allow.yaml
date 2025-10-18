@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: robotics-egress-allow, namespace: ? }
+spec:
+  podSelector: { matchLabels: { app: robotics-model } }
+  policyTypes: [ Egress ]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { app.kubernetes.io/name: mlflow } }
+      ports: [ { port: 5000, protocol: TCP } ]
+    - to:
+        - namespaceSelector: { matchLabels: { app.kubernetes.io/name: minio } }
+      ports: [ { port: 9000, protocol: TCP } ]
+    - to:   # OTLP(Tracing)
+        - namespaceSelector: { matchLabels: { app.kubernetes.io/name: otel } }
+      ports: [ { port: 4318, protocol: TCP } ]
