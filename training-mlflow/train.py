@@ -31,6 +31,8 @@ def main(run_name: str):
         clf.fit(Xtr, ytr)
         acc = accuracy_score(yte, clf.predict(Xte))
         mlflow.log_metric("accuracy", float(acc))
+        mlflow.sklearn.log_model(clf, artifact_path="model",
+            registered_model_name="robotics-model")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
