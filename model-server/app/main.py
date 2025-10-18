@@ -7,6 +7,11 @@ from fastapi import FastAPI, HTTPException
 import os, logging
 from pydantic import BaseModel
 from app.inference import predict
+import time
+from app.metrics import (
+    REQUESTS_TOTAL, SUCCESS_TOTAL, FAIL_TOTAL, DURATION,
+    LOWCONF_TOTAL, CONFIDENCE_HIST, INPUT_FPS, DRIFT_KL, QUEUE_BACKLOG
+)
 
 logging.basicConfig(level=logging.INFO)         # ← 일단 log찍어지는지 볼라고
 logger = logging.getLogger("robotics-model")
@@ -21,11 +26,19 @@ def health():
 
 @app.post("/predict")
 def do_predict(payload: InputPayload):
+    start = time.time()
+    REQUESTS_TOTAL.labels(route="/predict").inc()
     if len(payload.features) != 4:
-        raise HTTPException(status_code=400, detail="features 길이는 4여야 합니다.")
+       FAIL_TOTAL.labels(route="/predict", reason="bad_input").inc()
+       raise HTTPException(status_code=400, detail="features 길이는 4여야 합니다.")
     prob = predict(payload.features)
-    logger.info(f"[predict] 입력={payload.features} 결과={prob:.3f}")  # ← 운영 로깅
-    return {"probability": prob}
+     CONFIDENCE_HIST.observe(prob)
+     if prob <= float(os.getenv("LOWCONF_THRESHOLD", "0.6")):
+         LOWCONF_TOTAL.inc()
+     SUCCESS_TOTAL.labels(route="/predict").inc()
+     DURATION.observe(time.time() - start)
+     logger.info(f"[predict] 입력={payload.features} 결과={prob:.3f}")
+     return {"probability": prob}
 
 @app.get("/info")
 def info():
