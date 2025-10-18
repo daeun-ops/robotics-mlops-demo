@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: robotics-model, namespace: robotics-platform }
+spec:
+  template:
+    spec:
+      tolerations:
+        - key: "robotics"
+          operator: "Equal"
+          value: "platform"
+          effect: "NoSchedule"
+      nodeSelector:
+        node-pool: platform
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels: { app: robotics-model }
+              topologyKey: "kubernetes.io/hostname"   # 같은 노드에 몰리지 않게
