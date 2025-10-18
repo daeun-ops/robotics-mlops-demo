@@ -61,6 +61,14 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+      
+ minio-init:
+   image: minio/mc:latest
+   depends_on: { minio: { condition: service_started } }
+   env_file: .env
+   volumes:
+     - ./mlflow/minio-bootstrap.sh:/entrypoint.sh
+   entrypoint: ["/bin/sh","-c","/entrypoint.sh"]
 
 volumes:
   mlflow_store:
