@@ -33,7 +33,7 @@ jobs:
 
       # 2) 파이썬 의존성 설치 및 간단 스모크 테스트
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
