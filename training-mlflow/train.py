@@ -10,7 +10,7 @@
 """
 import argparse
 import os
-import mlflow
+import mlflow, os
 from sklearn.linear_model import LogisticRegression
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
@@ -20,9 +20,13 @@ def main(run_name: str):
     mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI", "http://localhost:5000"))
 
     X, y = make_classification(n_samples=500, n_features=4, n_informative=3, random_state=0)
-    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=0)
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=0)    
 
-    with mlflow.start_run(run_name=run_name):
+    #  MLflow Run name/tag ci에 주입 가능한 값으로 통일흘라고
+    run_name = os.environ.get("RUN_NAME", run_name)
+    mlflow.set_tag("git_commit", os.environ.get("GIT_COMMIT", "unknown"))  # ← 커밋 추적
+    with mlflow.start_run(run_name=run_name)
+
         clf = LogisticRegression(max_iter=1000)
         clf.fit(Xtr, ytr)
         acc = accuracy_score(yte, clf.predict(Xte))
