@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: chaos-pod-killer, namespace: ? }
+spec:
+  schedule: "*/30 * * * *"    # 30분마다 가볍게
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: default
+          restartPolicy: OnFailure
+          containers:
+            - name: killer
+              image: bitnami/kubectl:1.30
+              command: ["/bin/sh","-c"]
+              args:
+                - >
+                  kubectl -n ? delete pod -l app=robotics-model --field-selector=status.phase=Running
+                  --wait=false --grace-period=0 || true
