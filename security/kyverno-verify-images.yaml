@@ -1,0 +1,16 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata: { name: verify-signed-images }
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: only-signed
+      match: { resources: { kinds: [ "Pod" ] } }
+      verifyImages:
+        - imageReferences: [ "ghcr.io/?/?/*" ]
+          attestors:
+            - entries:
+                - keys: { publicKeys: |-
+                    -----BEGIN PUBLIC KEY-----
+                    ?
+                    -----END PUBLIC KEY----- }
