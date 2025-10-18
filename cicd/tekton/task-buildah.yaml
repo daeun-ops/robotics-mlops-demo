@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-and-push
+  namespace: "?" #대충 prod 가자
+spec:
+  params:
+    - name: IMAGE
+      type: string
+    - name: CONTEXT
+      type: string
+      default: model-server
+  steps:
+    - name: build
+      image: quay.io/buildah/stable:v1.36
+      securityContext:
+        privileged: true                  # 클러스터 정책에 따라 조정
+      script: |
+        #! /usr/bin/env bash
+        set -eux
+        cd $(params.CONTEXT)
+        buildah bud -t $(params.IMAGE) .
+        buildah push $(params.IMAGE)
