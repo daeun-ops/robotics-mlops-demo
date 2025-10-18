@@ -19,14 +19,20 @@ default_args = {
 }
 
 with DAG(
-    dag_id="robotics_retrain_pipeline",
-    description="Robotics retraining pipeline: ingest -> preprocess -> train -> register",
-    schedule_interval=None,
-    start_date=datetime(2025, 1, 1),
-    catchup=False,
-    default_args=default_args,
-    tags=["robotics", "mlops"],
-):
+  dag_id="robotics_retrain_pipeline",
+  description="로보틱스 재학습 파이프라인: ingest -> preprocess -> validate -> train",
+  schedule_interval="0 3 * * *",   # ← 매일 새벽 3시 재학습 
+  start_date=datetime(2025, 1, 1),
+  catchup=False,
+  max_active_runs=1,               # ← 중복 실행 방지
+  default_args={
+      "owner": "robotics-mlops",
+      "retries": 2, # ← 실패시 2회 재시도     
+      "retry_delay": timedelta(minutes=5),
+      "email": ["?@naver.com"],  # ← 실패 알림 이메일로 발성
+     },
+     tags=["robotics", "mlops"],
+ ):
 
     def _ingest():
         # 실제로는 sensor dataa 수집/적재(S3) logic 위치
@@ -47,6 +53,26 @@ with DAG(
         gyro_mean = sum(d["gyro"] for d in raw) / len(raw)
         (p / "features.json").write_text(json.dumps({"acc_mean": acc_mean, "gyro_mean": gyro_mean}))
 
+
+     # ─────────────────────────────────────────────────────────
+    # 품질ㄹ검증 (features.json) 최소 체크
+    # ─────────────────────────────────────────────────────────
+    def _validate():
+        import json, pathlib
+        p = pathlib.Path("/opt/airflow/shared/features.json")  # ← 공유 볼륨 경로(아래 compose에 마운트)
+        data = json.loads(p.read_text())
+        assert "acc_mean" in data and "gyro_mean" in data, "필수 키 누락"
+        assert -1.0 <= data["acc_mean"] <= 2.0, "acc_mean 범위 이탈"
+        assert -1.0 <= data["gyro_mean"] <= 2.0, "gyro_mean 범위 이탈"
+
+    validate = PythonVirtualenvOperator(
+        task_id="validate_features",
+        python_callable=_validate,
+        requirements=[""],
+        system_site_packages=False,
+   )
+
+     
     def _train_and_log(run_name: str = "robotics_demo"):
         # venv 안에 필요한 패키지 설치 한다음에 실행
         import os
@@ -90,6 +116,7 @@ with DAG(
         python_callable=_ingest,
         requirements=[""],
         system_site_packages=False,
+        op_kwargs={"output_path": "/opt/airflow/shared/features.json"}
     )
 
     preprocess = PythonVirtualenvOperator(
@@ -106,6 +133,7 @@ with DAG(
         system_site_packages=False,
         op_kwargs={"run_name": "robotics_demo"},
         env=MLFLOW_ENV,  # MLflow 연결 정보 주입
-    )
+        op_kwargs={"run_name":"robotics_demo","input_path":"/opt/airflow/shared/features.json"},
+     )
 
-    ingest >> preprocess >> train
++    ingest >> preprocess >> validate >> train
