@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline
+  namespace: "?"      # 배포용 네임스페이스 짓기 보통.. prod?
+imagePullSecrets:
+  - name: "?"         # registry 접근하기 위해 필요한 sa
