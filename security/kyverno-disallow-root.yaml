@@ -1,0 +1,14 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata: { name: disallow-root }
+spec:
+  validationFailureAction: enforce
+  rules:
+    - name: disallow-root
+      match: { resources: { kinds: [ "Pod" ] } }
+      validate:
+        message: "root 컨테이너 금지"
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
