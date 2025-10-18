@@ -37,4 +37,13 @@ spec:
           livenessProbe:
             httpGet: { path: /health, port: 8000 }
             periodSeconds: 10
-            failureThreshold: 3
+            failureThreshold: 3              
+  template:
+    spec:
+      initContainers:
+        - name: wait-mlflow
+          image: curlimages/curl:8.10.1
+          command: ["sh","-c","until curl -sf http://mlflow:5000/; do echo 기다리는중; sleep 3; done"]
+        - name: wait-minio
+          image: curlimages/curl:8.10.1
+          command: ["sh","-c","until curl -sf http://minio:9000/minio/health/ready; do echo 기다리는중; sleep 3; done"]
