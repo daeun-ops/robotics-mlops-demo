@@ -7,6 +7,8 @@ from fastapi import FastAPI, HTTPException
 import os, logging
 from pydantic import BaseModel
 from app.inference import predict
+from app import drift
+drift.start()
 import time
 from app.metrics import (
     REQUESTS_TOTAL, SUCCESS_TOTAL, FAIL_TOTAL, DURATION,
@@ -32,6 +34,7 @@ def do_predict(payload: InputPayload):
        FAIL_TOTAL.labels(route="/predict", reason="bad_input").inc()
        raise HTTPException(status_code=400, detail="features 길이는 4여야 합니다.")
     prob = predict(payload.features)
+    drift.observe_sample(payload.features)
      CONFIDENCE_HIST.observe(prob)
      if prob <= float(os.getenv("LOWCONF_THRESHOLD", "0.6")):
          LOWCONF_TOTAL.inc()
