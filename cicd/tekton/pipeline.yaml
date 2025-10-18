@@ -1,0 +1,31 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: robotics-ci 
+  namespace: "?" # 어딞가
+spec:
+  params:
+    - name: IMAGE
+      type: string
+    - name: K8S_NAMESPACE
+      type: string
+      default: "?"
+  tasks:
+    - name: build
+      taskRef: { name: build-and-push }
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE)
+    - name: deploy
+      runAfter: [ build ]
+      taskSpec:
+        steps:
+          - name: kubectl-apply
+            image: bitnami/kubectl:1.30
+            script: |
+              #! /bin/sh
+              set -eux
+              cd model-server
+              # 간단하게 set image (kustomize도 가능)
+              kubectl -n $(params.K8S_NAMESPACE) set image deploy/robotics-model robotics-model=$(params.IMAGE)
+              kubectl -n $(params.K8S_NAMESPACE) rollout status deploy/robotics-model --timeout=120s
