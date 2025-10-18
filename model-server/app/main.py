@@ -14,6 +14,8 @@ from app.metrics import (
     REQUESTS_TOTAL, SUCCESS_TOTAL, FAIL_TOTAL, DURATION,
     LOWCONF_TOTAL, CONFIDENCE_HIST, INPUT_FPS, DRIFT_KL, QUEUE_BACKLOG
 )
+from logging_filter import MaskFilter
+logger.addFilter(MaskFilter())
 
 logging.basicConfig(level=logging.INFO)         # ← 일단 log찍어지는지 볼라고
 logger = logging.getLogger("robotics-model")
