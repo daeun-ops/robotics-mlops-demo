@@ -20,6 +20,12 @@ services:
     command: bash -lc "airflow db init && airflow users create --username $$AIRFLOW_ADMIN_USER --firstname a --lastname b --role Admin --email a@b.c --password $$AIRFLOW_ADMIN_PASSWORD || true && airflow standalone"
     volumes:
       - ./data-pipeline-airflow/dags:/opt/airflow/dags
+      - airflow_shared:/opt/airflow/shared           # ← DAG 간 공유 아티팩트 저장소
+    healthcheck:                                     # ← 웹서버 헬스체크(운영 감성)
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3      
     ports:
       - "8080:8080"
     depends_on:
@@ -55,3 +61,7 @@ services:
 volumes:
   mlflow_store:
   minio_data:
+  airflow_shared
+
+  # networks 추가 할 예정 아직 잘 몰라서리 정의 후 각 서비스에 networks연결 할거
+  
