@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: robotics-model-dr
+  namespace: ?
+spec:
+  host: robotics-model-svc.?.svc.cluster.local     # 서비스 FQDN
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL                           # 메시 mTLS
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+      http:
+        http1MaxPendingRequests: 1000
+        maxRequestsPerConnection: 100
+        idleTimeout: 30s
+    outlierDetection:                              # 불량 인스턴스 격리
+      consecutive5xx: 3
+      interval: 10s
+      baseEjectionTime: 3m
+      maxEjectionPercent: 50
+    retries:                                       # 자동 재시도
+      attempts: 2
+      perTryTimeout: 300ms
+      retryOn: "gateway-error,connect-failure,refused-stream,5xx"
