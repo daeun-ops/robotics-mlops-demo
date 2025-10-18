@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata: { name: robotics-model, namespace: ? }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: robotics-model } }
+  strategy:
+    canary:
+      canaryService: robotics-model-svc-canary
+      stableService: robotics-model-svc
+      trafficRouting:
+        istio:
+          virtualService:
+            name: robotics-model-vs
+            routes: [ primary ]
+      steps:
+        - setWeight: 10
+        - pause: { duration: 300 }        # 5분 관찰
+        - analysis: { templates: [ { templateName: p95-check }, { templateName: err-check } ] }
+        - setWeight: 50
+        - pause: { duration: 300 }
+        - analysis: { templates: [ { templateName: p95-check }, { templateName: err-check } ] }
+        - setWeight: 100
+  template:
+    metadata: { labels: { app: robotics-model, version: v2 } }
+    spec:
+      containers:
+        - name: robotics-model
+          image: ghcr.io/?/?/robotics-model:?   # CI에서 SHA로 치환
+          ports: [ { containerPort: 8000 } ]
+          # readiness/liveness/lifecycle/security는 기존과 동일
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: { name: p95-check, namespace: ? }
+spec:
+  metrics:
+    - name: p95_latency
+      interval: 60s
+      successCondition: result < 0.5                      # p95 < 0.5s
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://?:9090
+          query: histogram_quantile(0.95, sum(rate(inference_duration_seconds_bucket[5m])) by (le))
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: { name: err-check, namespace: ? }
+spec:
+  metrics:
+    - name: error_rate
+      interval: 60s
+      successCondition: result < 0.05                     # 오류율 < 5%
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: http://?:9090
+          query: sum(rate(inference_failure_total[5m]))/sum(rate(inference_requests_total[5m]))
