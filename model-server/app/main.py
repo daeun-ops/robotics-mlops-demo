@@ -4,8 +4,10 @@ import mlflow
 from fastapi import FastAPI
 from prometheus_client import Histogram, Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
+from .ml_inference import router as ml_router
 
 app = FastAPI()
+app.include_router(ml_router)
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 MODEL_URI = os.getenv("MODEL_URI", "models:/robotics-model/Production")  # 프로덕션 스테이지
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
@@ -56,8 +58,8 @@ def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-from .ml_inference import router as ml_router
-app.include_router(ml_router)
+
+
 
 
 
