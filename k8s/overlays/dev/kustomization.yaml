@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      env: dev
+    includeSelectors: true
+bases:
+  - ../../base
+patches:
+  - target:
+      kind: VirtualService
+      name: robotics-model-vs
+    patch: |-
+      - op: replace
+        path: /spec/hosts/0
+        value: robotics-model-dev.example.com
+  - target:
+      kind: Route
+      name: robotics-model-route
+    patch: |-
+      - op: replace
+        path: /spec/host
+        value: robotics-model-dev.example.com
+configMapGenerator:
+  - name: model-config
+    behavior: merge
+    literals:
+      - MLFLOW_TRACKING_URI=http://mlflow-dev:5000
+      - MODEL_URI=models:/robotics-model/Production
