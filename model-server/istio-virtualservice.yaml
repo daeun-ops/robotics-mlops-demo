@@ -2,9 +2,11 @@ apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata: { name: robotics-model-vs, namespace: ? }
 spec:
-  hosts: [ robotics-model.example.com ]
-  gateways: [ robotics-gateway ]
+  hosts:
+    - robotics-model-svc.robotics-platform.svc.cluster.local
   http:
-    - name: primary   # Rollouts가 이 라우트를 제어 (가중치/미러 등)
+    - name: primary
       route:
-        - destination: { host: robotics-model-svc }       # stable 경로
+        - destination:
+            host: robotics-model-svc
+          weight: 100
