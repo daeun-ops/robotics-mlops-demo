@@ -1,1 +1,24 @@
-
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: robotics-platform
+resources:
+  - namespace.yaml
+  - ../..//model-server/deployment.yaml
+  - ../..//model-server/service.yaml
+  - ../..//model-server/istio-virtualservice.yaml
+  - ../..//model-server/route.yaml
+  - ../..//security/networkpolicy-default-deny.yaml
+  - ../..//security/networkpolicy-egress-allow.yaml
+  - ../..//monitoring/prometheus  # 디렉토리 가능
+configMapGenerator:
+  - name: model-config
+    literals:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_URI=models:/robotics-model/Production
+secretGenerator:
+  - name: registry-auth
+    literals:
+      - REGISTRY_USER=?
+      - REGISTRY_TOKEN=?
+generatorOptions:
+  disableNameSuffixHash: true
