@@ -1,0 +1,4 @@
+# DVC
+.dvc/tmp/
+data/processed/
+mlruns/
