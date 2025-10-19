@@ -1,0 +1,5 @@
+['remote "s3"']
+    url = s3://?/robotics-mlops-demo
+    endpointurl = https://?
+    access_key_id = ?
+    secret_access_key = ?
