@@ -2,7 +2,7 @@ name: Auto Promote (on model-registered)
 on:
   repository_dispatch:
     types: [model-registered]
-    
+
 permissions:
   contents: read
   id-token: write
@@ -12,40 +12,24 @@ env:
   K8S_NAMESPACE: robotics-platform
 
 jobs:
-  canary:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'v1.30.0'
-
-      - name: Kubeconfig
-        run: |
-          echo "${KUBECONFIG_B64}" | base64 -d > $HOME/.kube/config
-        env:
-          KUBECONFIG_B64: ${{ secrets.KUBE_CONFIG_DATA }}
-
-      - name: Bump canary weight via Argo Rollouts (or rollout restart)
-        run: |
-          # 모델 서버는 MODEL_URI=Production 을 읽으므로 재시작만으로 최신 반영 가능
-          kubectl -n ${K8S_NAMESPACE} rollout restart deploy/robotics-model
-          # 또는 Argo Rollouts 사용 시:
-          # kubectl -n ${K8S_NAMESPACE} argo rollouts restart rollout/robotics-model
-
-      - name: Canary SLO gate (p95/error)
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v4
+        with: { version: 'v1.30.0' }
+      - name: Setup kubeconfig
+        run: echo "${KUBECONFIG_B64}" | base64 -d > $HOME/.kube/config
+        env: { KUBECONFIG_B64: ${{ secrets.KUBE_CONFIG_DATA }} }
+      - name: Rollout restart to pick latest Production model
+        run: kubectl -n ${K8S_NAMESPACE} rollout restart deploy/robotics-model
+      - name: SLO gate (p95/error)
         run: |
           PROM=${{ secrets.PROM_ENDPOINT }}
           p95=$(curl -s "$PROM/api/v1/query?query=histogram_quantile(0.95,sum(rate(inference_duration_seconds_bucket[5m])) by (le))" | jq -r '.data.result[0].value[1]' || echo 0)
           err=$(curl -s "$PROM/api/v1/query?query=sum(rate(inference_failure_total[5m]))/sum(rate(inference_requests_total[5m]))" | jq -r '.data.result[0].value[1]' || echo 0)
           echo "p95=$p95 err=$err"
           awk -v a="$p95" -v b="$err" 'BEGIN{ exit (a>0.8 || b>0.08) ? 1:0 }'
-
       - name: Rollback if failed
         if: failure()
-        run: |
-          echo "SLO gate failed → rollback"
-          kubectl -n ${K8S_NAMESPACE} rollout undo deploy/robotics-model || true
+        run: kubectl -n ${K8S_NAMESPACE} rollout undo deploy/robotics-model || true
