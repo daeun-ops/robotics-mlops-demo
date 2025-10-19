@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: robotics-drift-alerts
+  namespace: robotics-platform
+spec:
+  groups:
+    - name: drift
+      rules:
+        - alert: ConfidenceDriftHigh
+          expr: confidence_drift > 0.8
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: "확신도 분포 드리프트 감지"
+            description: "확신도 분포가 베이스라인에서 크게 이탈"
