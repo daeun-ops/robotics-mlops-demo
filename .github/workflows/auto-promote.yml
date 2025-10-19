@@ -2,7 +2,7 @@ name: Auto Promote (on model-registered)
 on:
   repository_dispatch:
     types: [model-registered]
-
+    
 permissions:
   contents: read
   id-token: write
