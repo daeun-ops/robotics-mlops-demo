@@ -1,165 +1,70 @@
-name: ci-cd
+name: CI/CD
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - "model-server/**"
-      - ".github/workflows/ci-cd.yaml"
-      - "mlflow/**"
-      - "airflow/**"
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
-env:
-  # ─────────────────────────────────────────────────────────────
-  # 공통 환경변수 (필요시 수정)
-  # ─────────────────────────────────────────────────────────────
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/robotics-model     # ghcr.io/<owner>/<repo>/robotics-model
-  GIT_COMMIT: ${{ github.sha }}
-  K8S_NAMESPACE: "?"                                      # 예: "ml-platform" (Secrets에서 KUBE_NAMESPACE로도 주입 가능)
-  DEPLOYMENT_NAME: "robotics-model"                       # model-server/deployment.yaml 의 name과 일치
-  KUSTOMIZE_DIR: "model-server"                           # kustomization.yaml 위치
+# CodeQL, SLSA, provenance 등과 호환되도록 공통 권한을 명시
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  build-test-validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      # 1) 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) 파이썬 의존성 설치 및 간단 스모크 테스트
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install server deps
-        working-directory: model-server/app
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -c "import fastapi, uvicorn; print('FastAPI/uvicorn import OK')"
-      - name: Run unit tests (pytest)         # ← API 계약 테스트
-        working-directory: model-server/app
-        run: |
-          pip install pytest
-          pytest -q
-      - name: Run flake8 lint          # ← 간단 코드 규칙 검사
-        run: |
-         pip install flake8
-         flake8 model-server/app --max-line-length 120
-
-
-      # 3) Docker 빌드x 설정 (캐시/멀티플랫폼 등 확장 용이)
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 4) 레지스트리 로그인 (GHCR) 
-      #    ─ Secret 필요: GHCR_USERNAME="?" , GHCR_TOKEN="?"
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      - name: Cache pip
+        uses: actions/cache@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('training-mlflow/requirements.txt', 'model-server/app/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      # 5) 이미지 태그 계산 (SHA 기반)
-      - name: Compute tags
-        id: vars
-        run: |
-          SHA_SHORT="${GITHUB_SHA::7}"
-          echo "sha_tag=${SHA_SHORT}" >> $GITHUB_OUTPUT
-          echo "img=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHA_SHORT}" >> $GITHUB_OUTPUT
-          echo "img_latest=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+      - name: Install deps (make build)
+        run: make build
 
-      # 6) Docker 이미지 빌드 & 푸시
-      - name: Build & Push image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./model-server
-          file: ./model-server/Dockerfile
-          push: true
-          build-args: |
-            GIT_COMMIT=${{ env.GIT_COMMIT }}
-          tags: |
-            ${{ steps.vars.outputs.img }}
-            ${{ steps.vars.outputs.img_latest }}
+      - name: Lint
+        run: make lint
 
-  deploy:
-    name: Deploy to K8s/OKD
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Unit tests
+        run: make test
 
-      # 1) kubectl 설치
-      - name: Setup kubectl
+      - name: K8s manifest schema validation (kubeconform)
+        run: make kube-validate
+
+      # 아래 3개 step은 클러스터 크레덴셜이 있을 때만 실행
+      - name: Setup kubectl (for server-side dry-run)
+        if: ${{ secrets.KUBE_CONFIG_DATA != '' }}
         uses: azure/setup-kubectl@v4
         with:
           version: "v1.30.0"
 
-      # 2) kubeconfig 설정
-      #    ─ Secret 필요:
-      #      KUBE_CONFIG_B64="?"  (base64 인코딩된 kubeconfig)
-      - name: Write kubeconfig
+      - name: Configure kubeconfig
+        if: ${{ secrets.KUBE_CONFIG_DATA != '' }}
         run: |
-          echo "${KUBE_CONFIG_B64}" | base64 -d > kubeconfig
+          mkdir -p $HOME/.kube
+          echo "${KUBE_CONFIG_DATA}" | base64 -d > $HOME/.kube/config
         env:
-          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
 
-      - name: Use kubeconfig
-        run: |
-          export KUBECONFIG=$PWD/kubeconfig
-          kubectl cluster-info
-
-      # 3) kustomize 설치 (이미지 태그 치환을 깔끔하게 하기 위함)
-      - name: Setup kustomize
-        run: |
-          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/kustomize
-          kustomize version
-
-      # 4) 이미지 태그 치환 + 적용
-      - name: Kustomize build & apply
-        env:
-          KUBECONFIG: ${{ github.workspace }}/kubeconfig
-          IMG_SHA: ${{ needs.build-and-test.outputs.img || '' }}
-        run: |
-          # 이미지 태그는 build-and-test에서 계산한 SHA를 재구성하여 사용
-          SHA_SHORT="${GITHUB_SHA::7}"
-          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHA_SHORT}"
-
-          echo "Using image: ${IMG}"
-          cd "${{ env.KUSTOMIZE_DIR }}"
-          kustomize edit set image robotics-model=${IMG}   # kustomization.yaml 의 name: robotics-model 과 일치
-          kustomize build . | kubectl -n "${{ env.K8S_NAMESPACE }}" apply -f -
-
-      # 5) 롤아웃 확인
-      - name: Wait for rollout
-        env:
-          KUBECONFIG: ${{ github.workspace }}/kubeconfig
-        run: |
-          kubectl -n "${{ env.K8S_NAMESPACE }}" rollout status deploy/${{ env.DEPLOYMENT_NAME }} --timeout=120s
-
-
-      
-      - name: Canary SLO check & rollback
-        run: |
-          PROM=http://?:9090
-          p95=$(curl -s "$PROM/api/v1/query?query=histogram_quantile(0.95,sum(rate(inference_duration_seconds_bucket[5m])) by (le))" | jq -r '.data.result[0].value[1]' || echo 0)
-          err=$(curl -s "$PROM/api/v1/query?query=sum(rate(inference_failure_total[5m]))/sum(rate(inference_requests_total[5m]))" | jq -r '.data.result[0].value[1]' || echo 0)
-          echo "p95=$p95 err=$err"
-          awk -v a="$p95" -v b="$err" 'BEGIN{ exit (a>0.8 || b>0.08) ? 1:0 }'
-          if [ $? -ne 0 ]; then
-          echo "카나리 실패 → 자동 롤백"
-           kubectl -n "${{ env.K8S_NAMESPACE }}" rollout undo rollout/robotics-model || \
-           kubectl -n "${{ env.K8S_NAMESPACE }}" rollout undo deploy/robotics-model
-           exit 1
-          fip
+      - name: Server-side dry-run against cluster
+        if: ${{ secrets.KUBE_CONFIG_DATA != '' }}
+        run: make k8s-dryrun
