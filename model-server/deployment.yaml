@@ -25,7 +25,16 @@ spec:
       terminationGracePeriodSeconds: 20   # 프록시 연결 종료 대기
       containers:
         - name: robotics-model
-          ...
+        - image: 1234
+          env:
+            - name: MLFLOW_TRACKING_URI
+             value: "http://mlflow:5000"
+            - name: MODEL_URI
+              value: "models:/robotics-model/Production"
+            - name: BASE_MEAN
+              value: "0.0"
+            - name: BASE_STD
+              value: "1.0"
           lifecycle:
             preStop:
               exec:
