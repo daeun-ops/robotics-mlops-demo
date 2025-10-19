@@ -4,8 +4,5 @@ metadata:
   name: robotics-model
   namespace: ?
 spec:
-  to: { kind: Service, name: robotics-model-svc }
-  port: { targetPort: http }                    # 서비스 포트 이름 'http'
-  tls:
-    termination: edge                           # 필요에 따라 reencrypt 로 변경
-    insecureEdgeTerminationPolicy: Redirect
+  port:
+    targetPort: http
