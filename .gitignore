@@ -2,3 +2,7 @@
 .dvc/tmp/
 data/processed/
 mlruns/
+
+
+# ROS2 / 일반 로그
+*.log
