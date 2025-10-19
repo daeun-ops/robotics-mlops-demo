@@ -16,21 +16,14 @@ spec:
           image: python:3.11-slim
           command: ["python","/app/drift_exporter.py"]
           env:
-            - name: TARGET_METRICS
-              value: "http://robotics-model-svc/metrics"
-            - name: PORT
-              value: "9109"
-          ports:
-            - containerPort: 9109
-          volumeMounts:
-            - name: app
-              mountPath: /app
+            - { name: TARGET_METRICS, value: "http://robotics-model-svc/metrics" }
+            - { name: PORT, value: "9109" }
+          ports: [ { containerPort: 9109 } ]
+          volumeMounts: [ { name: app, mountPath: /app } ]
       volumes:
         - name: app
-          projected:
-            sources:
-              - configMap:
-                  name: drift-exporter-code
+          configMap:
+            name: drift-exporter-code
 ---
 apiVersion: v1
 kind: Service
@@ -39,10 +32,7 @@ metadata:
   namespace: robotics-platform
 spec:
   selector: { app: drift-exporter }
-  ports:
-    - name: http
-      port: 9109
-      targetPort: 9109
+  ports: [ { name: http, port: 9109, targetPort: 9109 } ]
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -51,4 +41,4 @@ metadata:
   namespace: robotics-platform
 data:
   drift_exporter.py: |
-    {{ 위 파이썬 파일 그대로 붙여넣기 }}
+    {{ 여기에 monitoring/exporters/drift_exporter.py 전체 내용을 그대로 붙여넣으세요 }}
