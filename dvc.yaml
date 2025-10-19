@@ -1,8 +1,5 @@
 stages:
   prepare:
     cmd: python data/prepare.py
-    deps:
-      - data/raw/
-      - data/prepare.py
-    outs:
-      - data/processed
+    deps: [ data/raw/, data/prepare.py ]
+    outs: [ data/processed ]
