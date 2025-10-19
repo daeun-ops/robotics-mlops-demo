@@ -1,7 +1,5 @@
 project: robotics
 registry: data/registry.db
 provider: local
-online_store:
-  type: sqlite
-offline_store:
-  type: file
+online_store: { type: sqlite }
+offline_store: { type: file }
