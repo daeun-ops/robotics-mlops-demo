@@ -3,8 +3,7 @@ kind: Service
 metadata:
   name: robotics-model-svc
 spec:
-  selector:
-    app: robotics-model
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 8000
