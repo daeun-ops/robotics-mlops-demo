@@ -1,54 +1,56 @@
-"""
-Fast api 기반의 robotics model serving API
-- /health: healthCheck~
-- /predict: 예측수행
-"""
-from fastapi import FastAPI, HTTPException
-import os, logging
-from pydantic import BaseModel
-from app.inference import predict
-from app import drift
-drift.start()
-import time
-from app.metrics import (
-    REQUESTS_TOTAL, SUCCESS_TOTAL, FAIL_TOTAL, DURATION,
-    LOWCONF_TOTAL, CONFIDENCE_HIST, INPUT_FPS, DRIFT_KL, QUEUE_BACKLOG
-)
-from logging_filter import MaskFilter
-logger.addFilter(MaskFilter())
+# --- MLflow 레지스트리에서 모델 로드 (Production) ---
+import os
+import mlflow
+from fastapi import FastAPI
+from prometheus_client import Histogram, Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
 
-logging.basicConfig(level=logging.INFO)         # ← 일단 log찍어지는지 볼라고
-logger = logging.getLogger("robotics-model")
-app = FastAPI(title="Robotics Model Server", version="0.1")
+app = FastAPI()
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
+MODEL_URI = os.getenv("MODEL_URI", "models:/robotics-model/Production")  # 프로덕션 스테이지
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+model = mlflow.pyfunc.load_model(MODEL_URI)  # 스타트업에 최신 Prod 로드
 
-class InputPayload(BaseModel):
-    features: list[float]
+# ── 메트릭 (간단 예시)
+REQUESTS = Counter("inference_requests_total", "총 예측 요청 수")
+FAILURES = Counter("inference_failure_total", "실패 수")
+LAT_HIST = Histogram("inference_duration_seconds", "추론 지연(초)")
+CONF_BUCKET = Histogram("inference_confidence_bucket", "확신도 히스토그램", buckets=[0.1*i for i in range(11)])
+INPUT_KL = Gauge("input_kl_divergence", "입력 분포 KL-Divergence(베이스라인 대비)")
+
+BASE_MEAN = float(os.getenv("BASE_MEAN", "0.0"))
+BASE_STD = float(os.getenv("BASE_STD", "1.0"))
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"ok": True, "model_uri": MODEL_URI}
 
 @app.post("/predict")
-def do_predict(payload: InputPayload):
+def predict(payload: dict):
+    import time, math, numpy as np
     start = time.time()
-    REQUESTS_TOTAL.labels(route="/predict").inc()
-    if len(payload.features) != 4:
-       FAIL_TOTAL.labels(route="/predict", reason="bad_input").inc()
-       raise HTTPException(status_code=400, detail="features 길이는 4여야 합니다.")
-    prob = predict(payload.features)
-    drift.observe_sample(payload.features)
-     CONFIDENCE_HIST.observe(prob)
-     if prob <= float(os.getenv("LOWCONF_THRESHOLD", "0.6")):
-         LOWCONF_TOTAL.inc()
-     SUCCESS_TOTAL.labels(route="/predict").inc()
-     DURATION.observe(time.time() - start)
-     logger.info(f"[predict] 입력={payload.features} 결과={prob:.3f}")
-     return {"probability": prob}
+    try:
+        x = payload.get("features")  # [a,b,c,d] 형태
+        y = model.predict([x])[0]
+        prob = float(y if isinstance(y, (int,float)) else y[0])
+        REQUESTS.inc()
+        CONF_BUCKET.observe(prob)
 
-@app.get("/info")
-def info():
-    return {
-       "model_version": os.getenv("MODEL_VERSION", "v1"),
-       "commit": os.getenv("GIT_COMMIT", "?"),
-       "environment": os.getenv("ENV", "local")
-    }
+        # 아주 단순한 입력 드리프트(KL) 추정: 가우시안 가정
+        arr = np.array(x, dtype=float)
+        mu = arr.mean()
+        sigma = arr.std() if arr.std() > 1e-6 else 1e-6
+        # KL(N(mu,sigma^2)||N(BASE_MEAN,BASE_STD^2))
+        kl = math.log(BASE_STD/sigma) + (sigma**2 + (mu-BASE_MEAN)**2)/(2*BASE_STD**2) - 0.5
+        INPUT_KL.set(kl)
+
+        return {"probability": prob}
+    except Exception as e:
+        FAILURES.inc()
+        return {"error": str(e)}, 500
+    finally:
+        LAT_HIST.observe(time.time() - start)
+
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
