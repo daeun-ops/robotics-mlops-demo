@@ -54,3 +54,13 @@ def predict(payload: dict):
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+from .ml_inference import router as ml_router
+app.include_router(ml_router)
+
+
+
+
+
+
