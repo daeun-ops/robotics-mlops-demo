@@ -2,12 +2,10 @@ apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata: { name: robotics-model, namespace: ? }
 spec:
-  replicas: 3
-  selector: { matchLabels: { app: robotics-model } }
   strategy:
     canary:
-      canaryService: robotics-model-svc-canary
       stableService: robotics-model-svc
+      canaryService: robotics-model-svc-canary
       trafficRouting:
         istio:
           virtualService:
